@@ -50,6 +50,23 @@ KokoHW::KokoHW(ros::NodeHandle &nh)
       ROS_ERROR("No robot_dyn_description given, %s", nh.getNamespace().c_str());
    }
 
+   std::string endlink;
+   if (!nh.getParam("endlink", endlink)) {
+      ROS_ERROR("No endlink given node namespace %s", nh.getNamespace().c_str());
+   }
+
+   KDL::Tree my_tree;
+   if(!kdl_parser::treeFromString(robot_desc_string, my_tree)){
+      ROS_ERROR("Failed to contruct kdl tree");
+   }
+
+   KDL::Chain emptyChain;
+   if (!my_tree.getChain("base_link", endlink, emptyChain)) {
+     ROS_ERROR("Failed to construct kdl chain");
+   }
+
+   BuildDynamicChain(emptyChain);
+
    num_joints = joint_names.size();
    motor_pos.resize(num_joints, 0.0);
    motor_vel.resize(num_joints, 0.0);
@@ -61,7 +78,6 @@ KokoHW::KokoHW(ros::NodeHandle &nh)
    angle_after_calibration.resize(num_joints, 0.0);
 
    motor_cmd_publishers.resize(num_joints);
-
 
 
    int num_simple_actuators = num_joints - paired_constraints.size();
@@ -85,30 +101,6 @@ KokoHW::KokoHW(ros::NodeHandle &nh)
    j_curr_eff_vect.resize(num_joints);
    j_cmd_eff_vect.resize(num_joints);
 
-   ///////////////////////////////////////////////////////////////////////////////////////////////
-   // add for Joint limits reading from urdf
-   // loading in joint limits
-   //https://github.com/ros-controls/ros_control/wiki/joint_limits_interface
-   // max_angles.resize(num_joints);
-   // min_angles.resize(num_joints);
-
-   // urdf::Model model;
-   // if (!model.initFile(robot_desc_string)){
-   //  ROS_ERROR("Failed to parse urdf file");
-   // }
-   // ROS_INFO("Successfully parsed urdf file");
-
-   // boost::shared_ptr<urdf::ModelInterface> koko_urdf = rdf_loader.getURDF();
-   // joint_limits_interface::JointLimits limits;
-   // ROS_ERROR("getting joint limits");
-   // for (int j; j< num_joints; j ++){
-   //  boost::shared_ptr<const urdf::Joint> urdf_joint = koko_urdf->getJoint(joint_names[j]);
-   //  const bool urdf_limits_ok = getJointLimits(urdf_joint, limits);
-   //  min_angles[j] = limits.min_position;
-   //  max_angles[j] = limits.max_position;
-   //  ROS_ERROR("min: %f, max: %f", min_angles[j], max_angles[j]);
-   // }
-   /////////////////////////////////////////////////////////////////////////////////////////////
 
    for (int i = 0; i < num_joints; i++) {
       cmd[i] = 0.0;
@@ -135,8 +127,12 @@ KokoHW::KokoHW(ros::NodeHandle &nh)
 
    calibration_num = 10;
 
-   jnt_state_tracker_subscriber = nh.subscribe("joint_state_tracker", 1000, &KokoHW::CalibrateJointState, this);
+   gravity.data[0] = 0;
+   gravity.data[1] = 0;
+   gravity.data[2] = -9.81;
 
+   sub_grav = nh.subscribe( "/koko_hardware/gravity", 1000, &KokoHW::gravCallback, this);
+   jnt_state_tracker_subscriber = nh.subscribe("joint_state_tracker", 1000, &KokoHW::CalibrateJointState, this);
    motor_state_subscriber = nh.subscribe("koko_hardware/motor_states", 1000, &KokoHW::UpdateMotorState, this);
 
    for (int i = 0; i < motor_names.size(); i++) {
@@ -259,6 +255,93 @@ KokoHW::KokoHW(ros::NodeHandle &nh)
    }
 }
 
+
+void KokoHW::gravCallback(const geometry_msgs::Vector3ConstPtr& grav) {
+    gravity[0] = grav->x;
+    gravity[1] = grav->y;
+    gravity[2] = grav->z;
+}
+
+void KokoHW::BuildDynamicChain(KDL::Chain emptyChain){
+    int ns = emptyChain.getNrOfSegments();
+    for(int i = 0; i < ns; i++){
+      KDL::Segment seg = emptyChain.segments[i];
+
+      if (seg.getJoint().getType() != 8)
+      {
+        JointParams* jointParam = new JointParams();
+        std::string jointName = seg.getJoint().getName();
+        joint_names.push_back(jointName);
+        chain.addSegment(seg);
+        double id_gain;
+        // double max_torque;
+        // double min_torque;
+        //double min_angle;
+        //double max_angle;
+        //if (!n.getParam(jointName + "/id", id_gain)) {
+        //  ROS_ERROR("No %s/i given (namespace: %s)", jointName.c_str(), n.getNamespace().c_str());
+        //  return false;
+        //}
+        id_gain = 1.0;
+        //if (!n.getParam(jointName + "/max_torque", max_torque)) {
+        //  ROS_ERROR("No %s/max_torque given (namespace: %s)", jointName.c_str(), n.getNamespace().c_str());
+        //  return false;
+        //}
+        //if (!n.getParam(jointName + "/min_torque", min_torque)) {
+        //  ROS_ERROR("No %s/min_torque given (namespace: %s)", jointName.c_str(), n.getNamespace().c_str());
+        //  return false;
+        //}
+        //if (!n.getParam(jointName + "/min_angle", min_angle)) {
+        //  ROS_ERROR("No %s/min_angle given (namespace: %s)", jointName.c_str(), n.getNamespace().c_str());
+        //  return false;
+        //}
+        //if (!n.getParam(jointName + "/max_angle", max_angle)) {
+        //  ROS_ERROR("No %s/max_angle given (namespace: %s)", jointName.c_str(), n.getNamespace().c_str());
+        //  return false;
+        //}
+
+        //jointParam->max_torque = max_torque;
+        //jointParam->min_torque = min_torque;
+        //jointParam->max_angle = max_angle;
+        //jointParam->min_angle = min_angle;
+        jointParam->id_gain = id_gain;
+        jointParam->joint_name = jointName;
+        joint_vector.push_back(jointParam);
+
+        ROS_INFO("Joint %s, has inverse dynamics gain of: %f", jointName.c_str(), id_gain);
+
+      }
+    }
+
+}
+
+void KokoHW::computeID()
+{
+   unsigned int nj = chain.getNrOfJoints();
+   KDL::JntArray jointPositions(nj);
+   KDL::JntArray jointVelocities(nj);
+   KDL::JntArray jointAccelerations(nj);
+   KDL::Wrenches f_ext;
+
+   for (int i = 0; i < nj; i++) {
+      jointPositions(i) = pos[i];
+      jointVelocities(i) = vel[i];
+      jointAccelerations(i) = 0.0;
+      f_ext.push_back(KDL::Wrench());
+   }
+
+  KDL::ChainIdSolver_RNE chainIdSolver(chain, gravity);
+  int statusID = chainIdSolver.CartToJnt(jointPositions, jointVelocities, jointAccelerations, f_ext, id_torques);
+  // ROS_INFO("status: %d", statusID);
+  //ROS_INFO("pos vel =  %f, %f", msg.position[0], msg.velocity[0]);
+
+  //std_msgs::Float64MultiArray inverseDynamicsMsg;
+  //for (int i = 0; i < joint_vector.size(); i++) {
+  //  inverseDynamicsMsg.data.push_back(id_torques(i));
+  //}
+  //inverseDynamicsPub.publish(inverseDynamicsMsg);
+}
+
 void KokoHW::UpdateMotorState(const koko_hardware_drivers::MotorState::ConstPtr& msg) {
    std_msgs::Float64 debug_msg;
    debug_msg.data = 1.0;
@@ -290,11 +373,9 @@ void KokoHW::UpdateMotorState(const koko_hardware_drivers::MotorState::ConstPtr&
         // update state of all motors
       }
    }
-   ///////////////////////////////////////////
-   // added for using transmission interface
+   // propgates actuator information to joint information
    act_to_jnt_state.propagate();
    for(int i = 0; i < num_joints; i ++) {
-      //TODO add back in when confiremted that this works
       pos[i] = j_curr_pos_vect[i] + joint_state_initial[i];
       vel[i] = j_curr_vel_vect[i];
       eff[i] = j_curr_eff_vect[i];
@@ -353,11 +434,14 @@ void KokoHW::write() {
 void KokoHW::PublishJointCommand() {
 
    if (is_calibrated) {
+      computeID();
       std::vector<double> pre(num_joints);
       std::vector<double> cmd_oriented(num_joints);
       // added for using transmission interface
       for (int i = 0; i < num_joints; i++){
-        j_cmd_eff_vect[i] = cmd[i];
+         // TODO
+        j_cmd_eff_vect[i] = cmd[i] + id_torques(i) * joint_vector[i]->id_gain;
+
         // checking joint limits and publish counter torque if near
         if(pos[i] > max_angles[i] - hardstop_eps){
            double del = pos[i] - max_angles[i] + hardstop_eps;

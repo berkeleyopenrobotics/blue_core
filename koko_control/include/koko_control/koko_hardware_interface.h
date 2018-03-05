@@ -10,6 +10,11 @@
 #include <sensor_msgs/JointState.h>
 #include <koko_hardware_drivers/MotorState.h>
 
+#include <kdl/jntarray.hpp>
+#include <geometry_msgs/Vector3.h>
+#include <kdl/chainidsolver_recursive_newton_euler.hpp>
+#include <kdl_parser/kdl_parser.hpp>
+#include <kdl/segment.hpp>
 using namespace transmission_interface;
 
 class KokoHW: public hardware_interface::RobotHW
@@ -20,6 +25,8 @@ public:
 
   void UpdateMotorState(const koko_hardware_drivers::MotorState::ConstPtr& msg);
   void CalibrateJointState(const sensor_msgs::JointState::ConstPtr& msg);
+  void computeID();
+  void BuildDynamicChain(KDL::Chain emptyChain);
   double convertMotorTorqueToCurrent(double motor_torque, int index);
   ros::Time get_time();
   ros::Duration get_period();
@@ -27,8 +34,26 @@ public:
   void write();
   void PublishJointCommand();
   const int getPositionRead();
+  void gravCallback(const geometry_msgs::Vector3ConstPtr& grav);
 
 private:
+  struct JointParams
+  {
+    std::string joint_name;
+    hardware_interface::JointHandle joint;
+    double id_gain;
+    double d_error;
+    double p_error_last;
+    double max_torque;
+    double min_torque;
+    double max_angle;
+    double min_angle;
+    double cmd;
+    std::vector<double> err_dot_history;
+    int err_dot_filter_length;
+    int current_err_filter_insert;
+  };
+
   hardware_interface::JointStateInterface jnt_state_interface;
   hardware_interface::EffortJointInterface jnt_effort_interface;
 
@@ -36,6 +61,7 @@ private:
   std::vector<ros::Publisher> motor_cmd_publishers;
   ros::Publisher debug_adv;
   ros::Subscriber jnt_state_tracker_subscriber;
+  ros::Subscriber sub_grav;
 
   ros::Time last_time;
   std::vector<std::string> joint_names;
@@ -103,4 +129,10 @@ private:
 
   std::vector<double> min_angles;
   std::vector<double> max_angles;
+
+  // Gravity Compensation
+  KDL::Vector gravity;
+  KDL::Chain chain;
+  KDL::JntArray id_torques;
+  std::vector<JointParams*> joint_vector;
 };

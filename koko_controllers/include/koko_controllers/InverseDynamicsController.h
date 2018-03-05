@@ -36,7 +36,7 @@ public:
 private:
   struct JointPD
   {
-    std::string joint_name; 
+    std::string joint_name;
     hardware_interface::JointHandle joint;
     double p_gain;
     double d_gain;
@@ -73,4 +73,4 @@ private:
 
 };
 }
- 
+
