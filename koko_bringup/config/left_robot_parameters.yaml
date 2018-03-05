@@ -5,7 +5,6 @@ koko_hardware:
     motor_zero_offset: [2.69444, -1.54165, -1.2812575, 0.0, 0.0, 0.0, 0.0]
     gear_ratio: [7.1875, 7.1875, 8.2444852941, 7.1875, 8.24448529412, 7.1875, 8.24448529412] # 8.24448529412 results from 7.1875 * (39 / 34) from the output gear
     current_slope: [0.626, 0.626, 0.626, 0.626, 0.626, 1.0, 1.0] # 1.0 is decent approx for small motors
-    current_offset: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
     calibration_initial_angles: [-0.62, 0.99, 0.0, -0.83, 0.0, 0.0, 0.0]
     hardstop_start_angles: [-0.785398, -2.19, -1.570796, 0.0, 1.570796, -0.23, 0.0] # angles that you the robot is in for hardstop calibration
     directions:        [-1.0, -1.0, 1.0, -1.0, 1.0, -1.0, 1.0]
@@ -19,6 +18,6 @@ koko_hardware:
     #vive or rviz
     target_mode: "vive"
     softstop_tolerance: 0.5
-    hardstop_torque_limit: 45.0
+    softstop_torque_limit: 45.0
     forearm_tracker: 'forearm_tracker_link'
     ee_tracker: 'ee_tracker_link'
