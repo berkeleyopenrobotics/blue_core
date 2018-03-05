@@ -55,6 +55,8 @@ private:
     int current_err_filter_insert;
   };
 
+  bool read_from_motors_;
+
   // ROS control hardware interfaces
   hardware_interface::JointStateInterface joint_state_interface_;
   hardware_interface::EffortJointInterface joint_effort_interface_;

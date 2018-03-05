@@ -46,7 +46,7 @@ KokoHW::KokoHW(ros::NodeHandle &nh)
   }
 
   std::string endlink;
-  if (!nh.getParam("endlink", endlink)) {
+  if (!nh.getParam("koko_hardware/endlink", endlink)) {
     ROS_ERROR("No endlink given node namespace %s", nh.getNamespace().c_str());
   }
 
@@ -60,8 +60,11 @@ KokoHW::KokoHW(ros::NodeHandle &nh)
     ROS_ERROR("Failed to construct kdl chain");
   }
   buildDynamicChain(chain);
+  id_torques = KDL::JntArray(chain.getNrOfJoints());
 
   num_joints_ = joint_names_.size();
+  read_from_motors_ = false;
+
   cmd.resize(num_joints_, 0.0);
   pos.resize(num_joints_, 0.0);
   vel.resize(num_joints_, 0.0);
@@ -109,6 +112,7 @@ KokoHW::KokoHW(ros::NodeHandle &nh)
 
   calibration_counter_ = 0;
   is_calibrated_ = false;
+
 
   for (int i = 0; i < num_joints_; i++) {
     joint_pos_initial_[i] = 0.0;
@@ -235,19 +239,22 @@ KokoHW::KokoHW(ros::NodeHandle &nh)
       simple_idx++;
     }
   }
+  ROS_INFO("Finished setting up transmissions");
 }
 
 void KokoHW::read() {
 }
 
 void KokoHW::write() {
+  if(!read_from_motors_)
+    return;
+
   if (is_calibrated_) {
     computeInverseDynamics();
     // added for using transmission interface
     for (int i = 0; i < num_joints_; i++){
       // TODO
       joint_cmd_[i] = cmd[i] + id_torques(i) * joint_params_[i]->id_gain;
-
       // checking joint limits and publish counter torque if near
       if(pos[i] > max_angles_[i] - softstop_tolerance_){
         double del = pos[i] - max_angles_[i] + softstop_tolerance_;
@@ -286,7 +293,6 @@ void KokoHW::buildDynamicChain(KDL::Chain &chain){
     {
       JointParams* jointParam = new JointParams();
       std::string jointName = seg.getJoint().getName();
-      joint_names_.push_back(jointName);
       kdl_chain_.addSegment(seg);
       double id_gain;
       jointParam->id_gain = 1.0;
@@ -296,6 +302,7 @@ void KokoHW::buildDynamicChain(KDL::Chain &chain){
       ROS_INFO("Joint %s, has inverse dynamics gain of: %f", jointName.c_str(), id_gain);
     }
   }
+  ROS_INFO("Finished Constructing Chain");
 }
 
 void KokoHW::computeInverseDynamics()
@@ -316,7 +323,7 @@ void KokoHW::computeInverseDynamics()
   KDL::ChainIdSolver_RNE chainIdSolver(kdl_chain_, gravity_vector_);
   int statusID = chainIdSolver.CartToJnt(jointPositions, jointVelocities, jointAccelerations, f_ext, id_torques);
   // ROS_INFO("status: %d", statusID);
-  //ROS_INFO("pos vel =  %f, %f", msg.position[0], msg.velocity[0]);
+  // ROS_INFO("pos vel =  %f, %f", pos[0], vel[0]);
 
   //std_msgs::Float64MultiArray inverseDynamicsMsg;
   //for (int i = 0; i < joint_params_.size(); i++) {
@@ -326,6 +333,7 @@ void KokoHW::computeInverseDynamics()
 }
 
 void KokoHW::motorStateCallback(const koko_hardware_drivers::MotorState::ConstPtr& msg) {
+  read_from_motors_ = true;
   for (int i = 0; i < msg->name.size(); i++) {
     int index = -1;
 
@@ -360,6 +368,8 @@ void KokoHW::motorStateCallback(const koko_hardware_drivers::MotorState::ConstPt
 }
 
 void KokoHW::calibrationStateCallback(const sensor_msgs::JointState::ConstPtr& msg) {
+  if (is_calibrated_)
+    return;
   if (calibration_counter_ >= 10) {
     for (int i = 0; i < joint_pos_initial_.size(); i++) {
       joint_pos_initial_[i] = msg->position[i];
@@ -368,7 +378,7 @@ void KokoHW::calibrationStateCallback(const sensor_msgs::JointState::ConstPtr& m
     }
     calibration_counter_++;
     is_calibrated_ = true;
-    ROS_INFO("Finished Calibrating Joint States");
+    ROS_INFO("Finished Calibrating Joint States, counter: %d", calibration_counter_);
   } else {
     for (int i = 0; i < joint_pos_initial_.size(); i++) {
       joint_pos_initial_[i] = msg->position[i];
