@@ -1,6 +1,7 @@
 #include "koko_control/koko_hardware_interface.h"
 #include <std_msgs/Float64.h>
 #include <urdf/model.h>
+#include <math.h>
 
 namespace ti = transmission_interface;
 
@@ -240,6 +241,44 @@ KokoHW::KokoHW(ros::NodeHandle &nh)
     }
   }
   ROS_INFO("Finished setting up transmissions");
+
+  //accelerometerCalibrate(num_differential_actuators);
+}
+
+
+void KokoHW::accelerometerCalibrate(int num_diff_actuators) {
+  unsigned int nj = kdl_chain_.getNrOfJoints();
+  KDL::ChainFkSolverPos_recursive fksolver(chain);
+
+  // calibrate base
+  KDL::Frame base_frame;
+
+  KDL::JntArray jointPositions = KDL::JntArray(nj);
+
+  KDL::Vector gravity_base;
+  gravity_base.data[0] = gravity_vector_[0];
+  gravity_base.data[1] = gravity_vector_[1];
+  gravity_base.data[2] = gravity_vector_[2];
+  for(int k = 0; k < 8; k ++){
+    actuator_pos_[index] = actuator_pos_initial_[0] + 2.0 * M_PI * k;
+    // add 2kpi to motor position
+    // propogate to joints
+    for (int i =0; i < nj; i++) {
+      jointPositions(i) = joint_pos_[i];
+    }
+
+    int status = fksolver.JntToCart(jointPositions, base_frame, 1);
+    KDL::Vector expected_gravity_vect = base_frame * gravity_base;
+
+    // gravity vector measured minus gravity vector in this joint position
+    double error = expect_gravity_vect[0] - 
+  }
+
+
+  for(int i = 0; i< num_diff_actuators; i++ ){
+
+  }
+
 }
 
 void KokoHW::read() {
