@@ -153,17 +153,20 @@ def main():
         p = np.array([y_raw, z_raw, x_raw, x_raw2])
         q = np.array([[0, 1, 0], [0, 0, 1], [1, 0, 0], [-1, 0, 0]])
         t, q, R, err = find_optimal_transform(p, q)
-        R = R[:3,:3]
-        print(R)
-        print(err)
-        g = R.dot(raw)
-        grav_msg = Vector3()
-        grav_msg.x = g[0]
-        grav_msg.y = g[1]
-        grav_msg.z = g[2]
-        grav_pub0.publish(grav_msg)
 
         transform = np.array([[ 0.26860026, -0.96283056, -0.02848168], [ 0.96299097,  0.2690981,  -0.01531682], [ 0.02241186, -0.0233135,   0.99947696]])
+        transform = transformations.rotation_matrix(np.pi/2, np.array([1, 0, 0]))[:3,:3].dot(transform)
+        trasnform = transformations.rotation_matrix(np.pi, np.array([0, 0, 1]))[:3,:3].dot(transform)
+        
+        # R = R[:3,:3]
+        # print(R)
+        # print(err)
+        g = transform.dot(raw)
+        grav_msg = Vector3()
+        grav_msg.x = g[0] * 9.81/1000.0
+        grav_msg.y = g[1] * 9.81/1000.0
+        grav_msg.z = -g[2] * 9.81/1000.0
+        grav_pub0.publish(grav_msg)
 
 
         # right
