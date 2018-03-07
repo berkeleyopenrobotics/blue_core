@@ -6,7 +6,7 @@ from koko_hardware_drivers.msg import MotorState
 import numpy as np
 import tf.transformations as transformations
 
-UPDATE_FREQ = 20
+UPDATE_FREQ = 20    
 EXP_CONST = 0.99
 
 global x_accum
