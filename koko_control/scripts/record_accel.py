@@ -63,6 +63,22 @@ def get_accel(msg):
             y_accum[loc] = y_accum[loc] * EXP_CONST + y_acc * (1.0 - EXP_CONST)
             z_accum[loc] = z_accum[loc] * EXP_CONST + z_acc * (1.0 - EXP_CONST)
 
+
+def get_rot_mat(vec, axis):
+	v1 = axis
+	v2 = vec
+	v3 = np.cross(v1, v2) / np.linalg.norm(np.cross(v1, v2))
+	v4 = np.cross(v3, v1)
+
+	m1 = np.array([v1, v4, v3])
+	c = v2.dot(v1)
+	s = v2.dot(v4)
+	m2 = np.array([ [c, s, 0.0], [-s, c, 0.0], [0.0, 0.0, 1.0] ])
+
+	if not np.isnan(m1).any():
+		rot = np.linalg.inv(m1).dot(m2).dot(m1)
+		return rot
+
 #################################################################################################
 
 def main():
@@ -93,32 +109,52 @@ def main():
         #print 'z_accum: {}'.format(z_accum)
 
         # right
+        raw_right = np.array([x_accum[0],y_accum[0],z_accum[0]])
+        raw_left = np.array([-x_accum[1],-y_accum[1],-z_accum[1]])
+        raw_right = (raw_right + raw_left) / 2.0
 
-        raw = np.array([[x_accum[0]],[y_accum[0]],[z_accum[0]]])
-        grav_msg = Vector3()
-        grav_msg.x = raw[0]
-        grav_msg.y = raw[1]
-        grav_msg.z = raw[2]
-        grav_pub0.publish(grav_msg)
+        raw_right_norm = raw_right / np.linalg.norm(raw_right)
 
-        # left
-        axis = [0.0, 0.0, 1.0]
-        theta = np.pi
-        correction_transform = transformations.rotation_matrix(theta, axis)[:3,:3]
-        raw = np.array([[x_accum[1]],[y_accum[1]],[z_accum[1]]])
-        raw = correction_transform.dot(raw)
+        rotx = get_rot_mat(raw_right_norm, np.array([1, 0, 0]))
+        roty = get_rot_mat(raw_right_norm, np.array([0, 1, 0]))
+        rotz = get_rot_mat(raw_right_norm, np.array([0, 0, 1]))
 
-        axis = [1.0, 0.0, 0.0]
-        theta = np.pi
-        correction_transform = transformations.rotation_matrix(theta, axis)[:3,:3]
-        raw = correction_transform.dot(raw)
+        if rotx is not None and roty is not None and rotz is not None:
+	        rot = rotx.dot(roty).dot(rotz)
+	        print(rot)
+        	g = rot.dot(raw_right)
+	        grav_msg = Vector3()
+	        grav_msg.x = g[0]
+	        grav_msg.y = g[1]
+	        grav_msg.z = g[2]
+	        grav_pub0.publish(grav_msg)
 
-        grav_msg = Vector3()
-        grav_msg.x = raw[0]
-        grav_msg.y = raw[1]
-        grav_msg.z = raw[2]
-        grav_pub1.publish(grav_msg)
-        print("published")
+        # right
+        # raw = np.array([[x_accum[0]],[y_accum[0]],[z_accum[0]]])
+        # grav_msg = Vector3()
+        # grav_msg.x = raw[0]
+        # grav_msg.y = raw[1]
+        # grav_msg.z = raw[2]
+        # grav_pub0.publish(grav_msg)
+
+        # # left
+        # axis = [0.0, 0.0, 1.0]
+        # theta = np.pi
+        # correction_transform = transformations.rotation_matrix(theta, axis)[:3,:3]
+        # raw = np.array([[x_accum[1]],[y_accum[1]],[z_accum[1]]])
+        # raw = correction_transform.dot(raw)
+
+        # axis = [1.0, 0.0, 0.0]
+        # theta = np.pi
+        # correction_transform = transformations.rotation_matrix(theta, axis)[:3,:3]
+        # raw = correction_transform.dot(raw)
+
+        # grav_msg = Vector3()
+        # grav_msg.x = raw[0]
+        # grav_msg.y = raw[1]
+        # grav_msg.z = raw[2]
+        # grav_pub1.publish(grav_msg)
+        # print("published")
         r.sleep()
 
 if __name__ == '__main__':
