@@ -64,20 +64,37 @@ def get_accel(msg):
             z_accum[loc] = z_accum[loc] * EXP_CONST + z_acc * (1.0 - EXP_CONST)
 
 
-def get_rot_mat(vec, axis):
-	v1 = axis
-	v2 = vec
-	v3 = np.cross(v1, v2) / np.linalg.norm(np.cross(v1, v2))
-	v4 = np.cross(v3, v1)
+def find_optimal_transform(p, q):
 
-	m1 = np.array([v1, v4, v3])
-	c = v2.dot(v1)
-	s = v2.dot(v4)
-	m2 = np.array([ [c, s, 0.0], [-s, c, 0.0], [0.0, 0.0, 1.0] ])
+    # de-mean the points to calculate the rotation
+    p_mean = np.mean(p, axis=0)
+    q_mean = np.mean(q, axis=0)
 
-	if not np.isnan(m1).any():
-		rot = np.linalg.inv(m1).dot(m2).dot(m1)
-		return rot
+    # SVD of covariance
+    cov = np.dot((p - p_mean).T, (q - q_mean))
+    U, S, VT = np.linalg.svd(cov, full_matrices=True)
+
+    # negative determinant => reflection => needs fixing
+    rectify = np.identity(U.shape[0])
+    rectify[-1][-1] = np.linalg.det(np.dot(VT.T, U.T))
+
+    # compute R and t
+    R = VT.T.dot(rectify).dot(U.T)
+    t = q_mean - np.dot(R, p_mean)
+
+    # compute maximum error
+    error = 0.0
+    for pi, qi in zip(p, q):
+        qi_pred = np.dot(R, pi) + t
+        error = max(error, np.linalg.norm(qi - qi_pred))
+
+    # R matrix => homogeneous transform => quaternion
+    R = np.hstack((R, np.zeros((3, 1))))
+    R = np.vstack((R, np.zeros((1, 4))))
+    R[-1, -1] = 1.0
+    q = transformations.quaternion_from_matrix(R)
+
+    return t, q, R, error
 
 #################################################################################################
 
@@ -108,26 +125,46 @@ def main():
         #print 'y_accum: {}'.format(y_accum)
         #print 'z_accum: {}'.format(z_accum)
 
-        # right
+        # Find transform
         raw_right = np.array([x_accum[0],y_accum[0],z_accum[0]])
-        raw_left = np.array([-x_accum[1],-y_accum[1],-z_accum[1]])
-        raw_right = (raw_right + raw_left) / 2.0
+        # Rotate left raw into right frame
+        axis = [0.0, 0.0, 1.0]
+        theta = np.pi
+        correction_transform = transformations.rotation_matrix(theta, axis)[:3,:3]
+        raw_left = np.array([[x_accum[1]],[y_accum[1]],[z_accum[1]]])
+        raw_left = correction_transform.dot(raw_left)
 
-        raw_right_norm = raw_right / np.linalg.norm(raw_right)
+        axis = [1.0, 0.0, 0.0]
+        theta = np.pi
+        correction_transform = transformations.rotation_matrix(theta, axis)[:3,:3]
+        raw_left = correction_transform.dot(raw_left)
 
-        rotx = get_rot_mat(raw_right_norm, np.array([1, 0, 0]))
-        roty = get_rot_mat(raw_right_norm, np.array([0, 1, 0]))
-        rotz = get_rot_mat(raw_right_norm, np.array([0, 0, 1]))
+        raw = (raw_right + raw_left.T[0]) / 2.0
 
-        if rotx is not None and roty is not None and rotz is not None:
-	        rot = rotx.dot(roty).dot(rotz)
-	        print(rot)
-        	g = rot.dot(raw_right)
-	        grav_msg = Vector3()
-	        grav_msg.x = g[0]
-	        grav_msg.y = g[1]
-	        grav_msg.z = g[2]
-	        grav_pub0.publish(grav_msg)
+        y_raw = [938.42967069, 332.7497597, -21.65929025]
+        z_raw = [14.13468672, -24.36888851, 986.29506329]
+        x_raw = [245.41154232, -966.56424899, -19.55734769]
+        x_raw2 = [-237.13234641, 948.83481383, 19.7845224]
+        z_raw = z_raw / np.linalg.norm(z_raw)
+        y_raw = y_raw / np.linalg.norm(y_raw)
+        x_raw = x_raw / np.linalg.norm(x_raw)
+        x_raw2 = x_raw2 / np.linalg.norm(x_raw2)
+        
+        p = np.array([y_raw, z_raw, x_raw, x_raw2])
+        q = np.array([[0, 1, 0], [0, 0, 1], [1, 0, 0], [-1, 0, 0]])
+        t, q, R, err = find_optimal_transform(p, q)
+        R = R[:3,:3]
+        print(R)
+        print(err)
+        g = R.dot(raw)
+        grav_msg = Vector3()
+        grav_msg.x = g[0]
+        grav_msg.y = g[1]
+        grav_msg.z = g[2]
+        grav_pub0.publish(grav_msg)
+
+        transform = np.array([[ 0.26860026, -0.96283056, -0.02848168], [ 0.96299097,  0.2690981,  -0.01531682], [ 0.02241186, -0.0233135,   0.99947696]])
+
 
         # right
         # raw = np.array([[x_accum[0]],[y_accum[0]],[z_accum[0]]])
