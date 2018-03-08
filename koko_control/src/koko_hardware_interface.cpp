@@ -273,7 +273,7 @@ void KokoHW::accelerometerCalibrate(int num_diff_actuators) {
 
     // gravity vector measured minus gravity vector in this joint position
     // TODO read gravity vector from link
-    error_base[k] = expect_gravity_vect[0] -
+    //error_base[k] = expect_gravity_vect[0] -
 
     // error will be appended to a list of errors
 
@@ -301,7 +301,7 @@ void KokoHW::accelerometerCalibrate(int num_diff_actuators) {
 
         // gravity vector measured minus gravity vector in this joint position
         // TODO read gravity vector from link
-        error_link[m1 + m2*8] = expect_gravity_vect[0] -
+        //error_link[m1 + m2*8] = expect_gravity_vect[0] -
         // error will be appended to a list of errors
       }
     }

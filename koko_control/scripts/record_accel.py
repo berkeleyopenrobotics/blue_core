@@ -201,7 +201,7 @@ def main():
     global num
 
     rospy.init_node('acc_recorder', anonymous=True)
-    motor_names = rospy.get_param("motor_names")
+    motor_names = rospy.get_param('motor_names')
     accelCalibrator = AccelCalibrate(motor_names)
     rospy.Subscriber("koko_hardware/motor_states", MotorState, accelCalibrator.get_accel, queue_size=1)
     #grav_pub0 = rospy.Publisher("koko_hardware/gravity0", Vector3, queue_size=1)
