@@ -3,7 +3,7 @@ koko_hardware:
     motor_names: ['right_motor', 'left_motor']
     motor_ids: [14, 16]
     gear_ratio: [7.1875, 8.24448529412] # 8.24448529412 results from 7.1875 * (39 / 34) from the output gear
-    current_slope: 0.626, 0.626] #[1.0, 1.0] # [0.626, 0.626]1.0 is decent approx for small motors
+    current_slope: [0.626, 0.626] #[1.0, 1.0] # [0.626, 0.626]1.0 is decent approx for small motors
     current_offset: [0.0, 0.0]
     calibration_initial_angles: [0.0, 0.0]
     hardstop_start_angles: [0.0, 0.0] # angles that you the robot is in for hardstop calibration

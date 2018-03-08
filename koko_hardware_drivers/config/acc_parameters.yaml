@@ -17,8 +17,8 @@ koko_hardware:
     paired_constraints: [1, 2, 3, 4]
     #vive or rviz
     target_mode: "vive"
-    softstop_tolerance: 0.5
-    softstop_torque_limit: 45.0
+    softstop_tolerance: 0.1
+    softstop_torque_limit: 5.0
     forearm_tracker: 'forearm_tracker_link'
     ee_tracker: 'ee_tracker_link'
-    endlink: "upper_arm_lift_link"
+    endlink: "forearm_link"

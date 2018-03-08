@@ -32,18 +32,23 @@ num = [0,0]
 
 class AccelCalibrate(object):
 
-    def __init__(self, motor_names):
-        self.motor_names = [motor_names[0]]
+    def __init__(self, motor_names, publisher):
+        # Assumes Base link with modular paired (differential motor) links, with optional gripper
+        self.motor_names = motor_names
         self.accel_vals = {}
         self.accel_vals[motor_names[0]] = None  # Add base link
 
-        for i in range(1, len(motor_names)-1, 2):
+        for i in range(1, len(motor_names)-1, 2):  # Iterate through paired links
             name = motor_names[i].split('_')[1]
             self.accel_vals[name] = None
             
         if 'grip' in motor_names[-1]:
-            self.motor_names.append(motor_names[-1])  # Add gripper
+            self.has_gripper = True
             self.accel_vals[motor_names[-1]] = None
+        else:
+            self.has_gripper = False
+
+        self.grav_publisher = publisher
     
     def get_accel(self, msg):
 
@@ -53,77 +58,101 @@ class AccelCalibrate(object):
                 loc = 0
             elif 'left' in motor_name:
                 loc = 1
+            else:
+                loc = 0
 
             acc_vect = msg.accel[i]
             x_acc = acc_vect.x
             y_acc = acc_vect.y
             z_acc = acc_vect.z
-            if motor_name == self.motor_names[0]:  # Base link check
+            if motor_name == self.motor_names[0] or self.has_gripper and motor_name == self.motor_names[-1]:  #Base link and  Gripper check
                 name = motor_name
-            elif motor_name == self.motor_names[-1]:  # Gripper check
-                name = motor_name
+                if self.accel_vals[name] is None:
+                    self.accel_vals[name] = [[0.0],[0.0],[0.0]]
+                    self.accel_vals[name][0][loc] = x_acc
+                    self.accel_vals[name][1][loc] = y_acc
+                    self.accel_vals[name][2][loc] = z_acc
+                    continue
             else:
                 name = motor_name.split('_')[1]
+                if self.accel_vals[name] is None:
+                    self.accel_vals[name] = [[0.0, 0.0],[0.0,0.0],[0.0,0.0]] 
+                    self.accel_vals[name][0][loc] = x_acc
+                    self.accel_vals[name][1][loc] = y_acc
+                    self.accel_vals[name][2][loc] = z_acc
+                    continue
 
-            if self.accel_vals[name] is None:
-                self.accel_vals[name] = [[0.0, 0.0],[0.0,0.0],[0.0,0.0]] 
-                self.accel_vals[name][0][loc] = x_acc
-                self.accel_vals[name][1][loc] = y_acc
-                self.accel_vals[name][2][loc] = z_acc
-            else:
-                self.accel_vals[name][0][loc] = self.accel_vals[name][0][loc] * EXP_CONST + x_acc * (1.0 - EXP_CONST)
-                self.accel_vals[name][1][loc] = self.accel_vals[name][1][loc] * EXP_CONST + y_acc * (1.0 - EXP_CONST)
-                self.accel_vals[name][2][loc] = self.accel_vals[name][2][loc] * EXP_CONST + z_acc * (1.0 - EXP_CONST)
+            self.accel_vals[name][0][loc] = self.accel_vals[name][0][loc] * EXP_CONST + x_acc * (1.0 - EXP_CONST)
+            self.accel_vals[name][1][loc] = self.accel_vals[name][1][loc] * EXP_CONST + y_acc * (1.0 - EXP_CONST)
+            self.accel_vals[name][2][loc] = self.accel_vals[name][2][loc] * EXP_CONST + z_acc * (1.0 - EXP_CONST)
 
-    def calibrate_gravity(self, publisher):
+        self.calibrate_gravity()  # transform to link frame and publish
+
+    def calibrate_gravity(self):
         grav_arr_msg = []
-        for motor_name in self.accel_vals:
-            if motor_name == self.motor_names[0] or motor_name == self.motor_names[-1]:
-                name = motor_name
-            else:
-                name = motor_name.split('_')[1]
-            x_accum = self.accel_vals[name][0]
-            y_accum = self.accel_vals[name][1]
-            z_accum = self.accel_vals[name][2]
-            
-            # Apply the transformation below [TODO: orient board around Z_axis]
-            # Find transform
-            raw_right = np.array([x_accum[0],y_accum[0],z_accum[0]])
-            # Rotate left raw into right frame
-            axis = [0.0, 0.0, 1.0]
-            theta = np.pi
-            correction_transform = transformations.rotation_matrix(theta, axis)[:3,:3]
-            raw_left = np.array([[x_accum[1]],[y_accum[1]],[z_accum[1]]])
-            raw_left = correction_transform.dot(raw_left)
 
-            axis = [1.0, 0.0, 0.0]
-            theta = np.pi
-            correction_transform = transformations.rotation_matrix(theta, axis)[:3,:3]
-            raw_left = correction_transform.dot(raw_left)
-
-            raw = (raw_right + raw_left.T[0]) / 2.0
-            
-            # TODO: Determine board orientation
-            #min_err = 999999999
-            #expected_gravity_vec =np.array([0, 0, -9.81])
-            #for i in range(1, 5):
-            #    z_rot = transformations.rotation_matrix(i*np.pi/2, np.array([0, 0, 1]))
-            #    z_rot_raw = z_rot.dot(raw)
+        for motor_name in self.motor_names:
+            if motor_name == self.motor_names[0] or self.has_gripper and motor_name == self.motor_names[-1]:
+                # Apply base gravity transform
+                axis = [0.0, 0.0, 1.0]
+                # correction z rotation
+                theta = 4.301 - np.pi
+                # best_z = np.linalg.inv(rotation_matrix(axis, theta))
+                best_z = transformations.rotation_matrix(-theta, axis)[:3,:3]
                 
-            transform = np.array([[ 0.26860026, -0.96283056, -0.02848168], [ 0.96299097,  0.2690981,  -0.01531682], [ 0.02241186, -0.0233135,   0.99947696]])
-            transform = transformations.rotation_matrix(np.pi/2, np.array([1, 0, 0]))[:3,:3].dot(transform)
-            transform = transformations.rotation_matrix(np.pi, np.array([0, 0, 1]))[:3,:3].dot(transform)
+                raw = np.array(self.accel_vals[motor_name])
+                corrected = best_z.dot(raw)
+                norm_val = np.linalg.norm(corrected) / 9.81
+                grav_msg = Vector3()
+                grav_msg.x = corrected[0] / norm_val
+                grav_msg.y = corrected[1] / norm_val
+                grav_msg.z = -corrected[2] / norm_val
+            else:  # Differential paired motor
+                name = motor_name.split('_')[1]
+                if 'left' in motor_name:
+                    continue
+
+                x_accum = self.accel_vals[name][0]
+                y_accum = self.accel_vals[name][1]
+                z_accum = self.accel_vals[name][2]
+                
+                # Apply the transformation below [TODO: orient board around Z_axis]
+                raw_right = np.array([x_accum[0],y_accum[0],z_accum[0]])
+                # Rotate left raw into right frame
+                axis = [0.0, 0.0, 1.0]
+                theta = np.pi
+                correction_transform = transformations.rotation_matrix(theta, axis)[:3,:3]
+                raw_left = np.array([[x_accum[1]],[y_accum[1]],[z_accum[1]]])
+                raw_left = correction_transform.dot(raw_left)
+
+                axis = [1.0, 0.0, 0.0]
+                theta = np.pi
+                correction_transform = transformations.rotation_matrix(theta, axis)[:3,:3]
+                raw_left = correction_transform.dot(raw_left)
+
+                raw = (raw_right + raw_left.T[0]) / 2.0
+
+                # Correct expected transform
+                transform = np.array([[ 0.26860026, -0.96283056, -0.02848168], [ 0.96299097,  0.2690981,  -0.01531682], [ 0.02241186, -0.0233135,   0.99947696]])
+                transform = transformations.rotation_matrix(np.pi/2, np.array([1, 0, 0]))[:3,:3].dot(transform)
+                transform = transformations.rotation_matrix(np.pi, np.array([0, 0, 1]))[:3,:3].dot(transform)
             
-            # print(R)
-            # print(err)
-            g = transform.dot(raw)
-            grav_msg = Vector3()
-            grav_msg.x = g[0] * 9.81/1000.0
-            grav_msg.y = g[1] * 9.81/1000.0
-            grav_msg.z = -g[2] * 9.81/1000.0
+                # TODO: Determine board orientation
+                #expected_gravity_vec = np.array([0, 0, -9.81])
+                #for i in range(1, 5):
+                #    z_rot = transformations.rotation_matrix(i*np.pi/2, np.array([0, 0, 1]))
+                #    z_rot_raw = z_rot.dot(raw)
+                
+                g = transform.dot(raw)
+
+                grav_msg = Vector3()
+                grav_msg.x = g[0] * 9.81/1000.0
+                grav_msg.y = g[1] * 9.81/1000.0
+                grav_msg.z = -g[2] * 9.81/1000.0
+
             grav_arr_msg.append(grav_msg)
 
-        publisher.publish(grav_arr_msg)
+        self.grav_publisher.publish(grav_arr_msg)
 
 
 def get_accel(msg):
@@ -142,7 +171,6 @@ def get_accel(msg):
         if left_name == name_test:
             index = i
             loc = 1
-            # print(name_test)
 
         acc_vect = msg.accel[index]
         x_acc = acc_vect.x
@@ -201,106 +229,106 @@ def main():
     global num
 
     rospy.init_node('acc_recorder', anonymous=True)
-    motor_names = rospy.get_param('motor_names')
-    accelCalibrator = AccelCalibrate(motor_names)
+    motor_names = rospy.get_param('koko_hardware/motor_names')
+    motor_grav_pub = rospy.Publisher("koko_hardware/gravity_vectors", GravityVectArr, queue_size=1)
+    accelCalibrator = AccelCalibrate(motor_names, motor_grav_pub)
     rospy.Subscriber("koko_hardware/motor_states", MotorState, accelCalibrator.get_accel, queue_size=1)
     #grav_pub0 = rospy.Publisher("koko_hardware/gravity0", Vector3, queue_size=1)
     #grav_pub1 = rospy.Publisher("koko_hardware/gravity1", Vector3, queue_size=1)
-    motor_grav_pub = rospy.Publisher("koko_hardware/gravity_vectors", GravityVectorArr, queue_size=1)
     r = rospy.Rate(UPDATE_FREQ)
 
     while not rospy.is_shutdown():
 
-        accelCalibrator.calibrate_gravity(motor_grav_pub)
-        #rospy.logerr("{}".format(num))
-        #rospy.logerr("{}".format(num))
-        #axis = [0.0, 0.0, 1.0]
-        # correction z rotation
-        #theta = 4.301 - np.pi
-        # best_z = np.linalg.inv(rotation_matrix(axis, theta))
-        #best_z = transformations.rotation_matrix(-theta, axis)[:3,:3]
+    #     # accelCalibrator.calibrate_gravity(motor_grav_pub)
+    #     #rospy.logerr("{}".format(num))
+    #     #rospy.logerr("{}".format(num))
+    #     #axis = [0.0, 0.0, 1.0]
+    #     # correction z rotation
+    #     #theta = 4.301 - np.pi
+    #     # best_z = np.linalg.inv(rotation_matrix(axis, theta))
+    #     #best_z = transformations.rotation_matrix(-theta, axis)[:3,:3]
 
-        #print 'iteration {}'.format(num)
-        #print 'x_accum: {}'.format(x_accum)
-        #print 'y_accum: {}'.format(y_accum)
-        #print 'z_accum: {}'.format(z_accum)
+    #     #print 'iteration {}'.format(num)
+    #     #print 'x_accum: {}'.format(x_accum)
+    #     #print 'y_accum: {}'.format(y_accum)
+    #     #print 'z_accum: {}'.format(z_accum)
 
-        # Find transform
-        raw_right = np.array([x_accum[0],y_accum[0],z_accum[0]])
-        # Rotate left raw into right frame
-        axis = [0.0, 0.0, 1.0]
-        theta = np.pi
-        correction_transform = transformations.rotation_matrix(theta, axis)[:3,:3]
-        raw_left = np.array([[x_accum[1]],[y_accum[1]],[z_accum[1]]])
-        raw_left = correction_transform.dot(raw_left)
+    #     # Find transform
+    #     raw_right = np.array([x_accum[0],y_accum[0],z_accum[0]])
+    #     # Rotate left raw into right frame
+    #     axis = [0.0, 0.0, 1.0]
+    #     theta = np.pi
+    #     correction_transform = transformations.rotation_matrix(theta, axis)[:3,:3]
+    #     raw_left = np.array([[x_accum[1]],[y_accum[1]],[z_accum[1]]])
+    #     raw_left = correction_transform.dot(raw_left)
 
-        axis = [1.0, 0.0, 0.0]
-        theta = np.pi
-        correction_transform = transformations.rotation_matrix(theta, axis)[:3,:3]
-        raw_left = correction_transform.dot(raw_left)
+    #     axis = [1.0, 0.0, 0.0]
+    #     theta = np.pi
+    #     correction_transform = transformations.rotation_matrix(theta, axis)[:3,:3]
+    #     raw_left = correction_transform.dot(raw_left)
 
-        raw = (raw_right + raw_left.T[0]) / 2.0
+    #     raw = (raw_right + raw_left.T[0]) / 2.0
 
-        y_raw = [938.42967069, 332.7497597, -21.65929025]
-        z_raw = [14.13468672, -24.36888851, 986.29506329]
-        x_raw = [245.41154232, -966.56424899, -19.55734769]
-        x_raw2 = [-237.13234641, 948.83481383, 19.7845224]
-        z_raw = z_raw / np.linalg.norm(z_raw)
-        y_raw = y_raw / np.linalg.norm(y_raw)
-        x_raw = x_raw / np.linalg.norm(x_raw)
-        x_raw2 = x_raw2 / np.linalg.norm(x_raw2)
+    #     y_raw = [938.42967069, 332.7497597, -21.65929025]
+    #     z_raw = [14.13468672, -24.36888851, 986.29506329]
+    #     x_raw = [245.41154232, -966.56424899, -19.55734769]
+    #     x_raw2 = [-237.13234641, 948.83481383, 19.7845224]
+    #     z_raw = z_raw / np.linalg.norm(z_raw)
+    #     y_raw = y_raw / np.linalg.norm(y_raw)
+    #     x_raw = x_raw / np.linalg.norm(x_raw)
+    #     x_raw2 = x_raw2 / np.linalg.norm(x_raw2)
         
-        p = np.array([y_raw, z_raw, x_raw, x_raw2])
-        q = np.array([[0, 1, 0], [0, 0, 1], [1, 0, 0], [-1, 0, 0]])
-        t, q, R, err = find_optimal_transform(p, q)
+    #     p = np.array([y_raw, z_raw, x_raw, x_raw2])
+    #     q = np.array([[0, 1, 0], [0, 0, 1], [1, 0, 0], [-1, 0, 0]])
+    #     t, q, R, err = find_optimal_transform(p, q)
         
-        min_err = 999999999
-        expected_gravity_vec =np.array([0, 0, -9.81])
-        for i in range(1, 5):
-            z_rot = transformations.rotation_matrix(i*np.pi/2, np.array([0, 0, 1]))
-            raw = z_rot.dot(raw)
+    #     min_err = 999999999
+    #     expected_gravity_vec =np.array([0, 0, -9.81])
+    #     for i in range(1, 5):
+    #         z_rot = transformations.rotation_matrix(i*np.pi/2, np.array([0, 0, 1]))
+    #         raw = z_rot.dot(raw)
             
-        transform = np.array([[ 0.26860026, -0.96283056, -0.02848168], [ 0.96299097,  0.2690981,  -0.01531682], [ 0.02241186, -0.0233135,   0.99947696]])
-        transform = transformations.rotation_matrix(np.pi/2, np.array([1, 0, 0]))[:3,:3].dot(transform)
-        transform = transformations.rotation_matrix(np.pi, np.array([0, 0, 1]))[:3,:3].dot(transform)
+    #     transform = np.array([[ 0.26860026, -0.96283056, -0.02848168], [ 0.96299097,  0.2690981,  -0.01531682], [ 0.02241186, -0.0233135,   0.99947696]])
+    #     transform = transformations.rotation_matrix(np.pi/2, np.array([1, 0, 0]))[:3,:3].dot(transform)
+    #     transform = transformations.rotation_matrix(np.pi, np.array([0, 0, 1]))[:3,:3].dot(transform)
         
-        # R = R[:3,:3]
-        # print(R)
-        # print(err)
-        g = transform.dot(raw)
-        grav_msg = Vector3()
-        grav_msg.x = g[0] * 9.81/1000.0
-        grav_msg.y = g[1] * 9.81/1000.0
-        grav_msg.z = -g[2] * 9.81/1000.0
-        grav_pub0.publish(grav_msg)
+    #     # R = R[:3,:3]
+    #     # print(R)
+    #     # print(err)
+    #     g = transform.dot(raw)
+    #     grav_msg = Vector3()
+    #     grav_msg.x = g[0] * 9.81/1000.0
+    #     grav_msg.y = g[1] * 9.81/1000.0
+    #     grav_msg.z = -g[2] * 9.81/1000.0
+    #     grav_pub0.publish(grav_msg)
 
 
-        # right
-        # raw = np.array([[x_accum[0]],[y_accum[0]],[z_accum[0]]])
-        # grav_msg = Vector3()
-        # grav_msg.x = raw[0]
-        # grav_msg.y = raw[1]
-        # grav_msg.z = raw[2]
-        # grav_pub0.publish(grav_msg)
+    #     # right
+    #     # raw = np.array([[x_accum[0]],[y_accum[0]],[z_accum[0]]])
+    #     # grav_msg = Vector3()
+    #     # grav_msg.x = raw[0]
+    #     # grav_msg.y = raw[1]
+    #     # grav_msg.z = raw[2]
+    #     # grav_pub0.publish(grav_msg)
 
-        # # left
-        # axis = [0.0, 0.0, 1.0]
-        # theta = np.pi
-        # correction_transform = transformations.rotation_matrix(theta, axis)[:3,:3]
-        # raw = np.array([[x_accum[1]],[y_accum[1]],[z_accum[1]]])
-        # raw = correction_transform.dot(raw)
+    #     # # left
+    #     # axis = [0.0, 0.0, 1.0]
+    #     # theta = np.pi
+    #     # correction_transform = transformations.rotation_matrix(theta, axis)[:3,:3]
+    #     # raw = np.array([[x_accum[1]],[y_accum[1]],[z_accum[1]]])
+    #     # raw = correction_transform.dot(raw)
 
-        # axis = [1.0, 0.0, 0.0]
-        # theta = np.pi
-        # correction_transform = transformations.rotation_matrix(theta, axis)[:3,:3]
-        # raw = correction_transform.dot(raw)
+    #     # axis = [1.0, 0.0, 0.0]
+    #     # theta = np.pi
+    #     # correction_transform = transformations.rotation_matrix(theta, axis)[:3,:3]
+    #     # raw = correction_transform.dot(raw)
 
-        # grav_msg = Vector3()
-        # grav_msg.x = raw[0]
-        # grav_msg.y = raw[1]
-        # grav_msg.z = raw[2]
-        # grav_pub1.publish(grav_msg)
-        # print("published")
+    #     # grav_msg = Vector3()
+    #     # grav_msg.x = raw[0]
+    #     # grav_msg.y = raw[1]
+    #     # grav_msg.z = raw[2]
+    #     # grav_pub1.publish(grav_msg)
+    #     # print("published")
         r.sleep()
 
 if __name__ == '__main__':
