@@ -30,7 +30,10 @@ class BLDCDriverNode:
 
         motor_ids = rospy.get_param('motor_ids')
         motor_names = rospy.get_param('motor_names')
-        self.ctrl_mode = rospy.get_param('control_mode')  # 0 for Current Ctrl, 2 for Torque, 3 for Velocity [Based on BLDC Protocol_v2]
+        try:
+        	self.ctrl_mode = rospy.get_param('control_mode')  # 0 for Current Ctrl, 2 for Torque, 3 for Velocity [Based on BLDC Protocol_v2]
+        except Exception as e:
+        	self.ctrl_mode = 0
 
         self.motor_names = {}
         for id, name in zip(motor_ids, motor_names):
