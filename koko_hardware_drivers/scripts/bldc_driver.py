@@ -22,11 +22,16 @@ class BLDCDriverNode:
     MAX_TEMP_MOTORS_OFF = 75
     CONTROL_LOOP_FREQ = 200
 
+    MAX_TORQUE = 0  # TODO
+    MAX_VELOCITY = 0  # TODO
+
     def __init__(self):
         rospy.init_node('bldc_driver', anonymous=True)
 
         motor_ids = rospy.get_param('motor_ids')
         motor_names = rospy.get_param('motor_names')
+        self.ctrl_mode = rospy.get_param('control_mode')  # 0 for Current Ctrl, 2 for Torque, 3 for Velocity [Based on BLDC Protocol_v2]
+
         self.motor_names = {}
         for id, name in zip(motor_ids, motor_names):
             self.motor_names[id] = name
@@ -68,7 +73,14 @@ class BLDCDriverNode:
                     rospy.loginfo("Calibrating motor %d..." % id)
                     calibrations = self.bldc.readCalibration(id)
                     self.bldc.setZeroAngle(id, calibrations['angle'])
-                    self.bldc.setCurrentControlMode(id)
+                    if self.ctrl_mode == 0:
+                    	self.bldc.setCurrentControlMode(id)
+                    elif self.ctrl_mode == 2:
+                    	self.bldc.setTorqueControlMode(id)
+                    elif self.ctrl_mode == 3:
+                    	self.bldc.setVelocityControlMode(id)
+                    else:
+                    	rospy.logerr("Invalid Control Mode {}".format(self.ctrl_mode))
                     self.bldc.setInvertPhases(id, calibrations['inv'])
                     self.bldc.setERevsPerMRev(id, calibrations['epm'])
                     self.bldc.setTorqueConstant(id, calibrations['torque'])
@@ -99,11 +111,11 @@ class BLDCDriverNode:
                 try:
                     if not self.stop_motors:
                         if motor_id in self.command_queue:
-                            state = self.bldc.setCommandAndGetState(motor_id, self.command_queue.pop(motor_id))
+                            state = self.set_command_get_state(motor_id, self.command_queue.pop(motor_id))
                         else:
                             state = self.bldc.getState(motor_id)
                     else:
-                        state = self.bldc.setCommandAndGetState(motor_id, 0.0)
+                        state = self.bldc.set_command_get_state(motor_id, 0.0)
 
                     angle, velocity, direct_current, quadrature_current, \
                             supply_voltage, temperature, accel_x, accel_y, accel_z = state
@@ -134,17 +146,36 @@ class BLDCDriverNode:
             self.state_publisher.publish(stateMsg)
             r.sleep()
 
-    def make_set_command(self, motor_id):
+    def make_set_command(self, motor_id):    		
         def set_command(motor_id, msg):
             effort_raw = msg.data
             effort_filtered = effort_raw
 
-            if effort_filtered > self.MAX_CURRENT:
-                effort_filtered = self.MAX_CURRENT
-            elif effort_filtered < -self.MAX_CURRENT:
-                effort_filtered = -self.MAX_CURRENT
+    		if self.ctrl_mode == 0:  # Current Control
+	            ctrl_limit = self.MAX_CURRENT
+	        elif self.ctrl_mode == 2:  # Torque Control
+	        	ctrl_limit = self.MAX_TORQUE
+	    	elif self.ctrl_mode == 3:  # Velocity Control
+	    		ctrl_limit = self.MAX_VELOCITY
+	    	else:
+	    		rospy.logerr("Invalid Control Mode {}".format(self.ctrl_mode))
+
+	        if effort_filtered > ctrl_limit:
+                effort_filtered = ctrl_limit
+            elif effort_filtered < -ctrl_limit:
+                effort_filtered = -ctrl_limit
             self.command_queue[motor_id] = effort_filtered
         return lambda msg: set_command(motor_id, msg)
+
+    def set_command_get_state(self, server_id, value):
+    	if self.ctrl_mode == 0:
+        	return self.bldc.setCurrentCommandAndGetState(server_id, value)
+        elif self.ctrl_mode == 2:
+        	return self.bldc.setTorqueCommandAndGetState(server_id, value)
+        elif self.ctrl_mode == 3:
+        	return self.bldc.setVelocityCommandAndGetState(server_id, value)
+        else:
+        	rospy.logerr("Invalid Control Mode {}".format(self.ctrl_mode))
 
     def stop_motors_cb(self, msg):
         if msg.data:

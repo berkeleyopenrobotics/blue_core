@@ -126,13 +126,29 @@ class BLDCControllerClient:
         return self.writeRegisters(server_id, 0x2000, 1, struct.pack('<B', 0))
 
     def setCommand(self, server_id, value):
+        # Current Ctrl Command
         ret = self.writeRegisters(server_id, 0x2002, 1, struct.pack('<f', value))
         return ret
 
-    def setCommandAndGetState(self, server_id, value):
-        ret = self.readWriteRegisters(server_id, 0x3000, 9, 0x2002, 1, struct.pack('<f', value))
+    def _setCommandAndGetState(self, server_id, value, register):
+        ret = self.readWriteRegisters(server_id, 0x3000, 9, register, 1, struct.pack('<f', value))
         state = struct.unpack('<ffffffiii', ret)
         return state
+
+    def setCurrentCommandAndGetState(self, server_id, value):
+        return self._setCommandAndGetState(server_id, value, 0x2002)
+
+    def setTorqueControlMode(self, server_id):
+        return self.writeRegisters(server_id, 0x2000, 1, struct.pack('<B', 2))
+
+    def setTorqueCommandAndGetState(self, server_id, value):
+        return self._setCommandAndGetState(server_id, value, 0x2006)
+
+    def setVelocityControlMode(self, server_id):
+        return self.writeRegisters(server_id, 0x2000, 1, struct.pack('<B', 3))
+
+    def setVelocityCommandAndGetState(self, server_id, value):
+        return self._setCommandAndGetState(server_id, value, 0x2007)
 
     def leaveBootloader(self, server_id):
         self.jumpToAddress(server_id, COMM_FIRMWARE_OFFSET)
