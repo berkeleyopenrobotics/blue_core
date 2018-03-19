@@ -22,11 +22,25 @@ class BLDCDriverNode:
     MAX_TEMP_MOTORS_OFF = 75
     CONTROL_LOOP_FREQ = 200
 
+    MAX_TORQUE = 0  # TODO
+    MAX_VELOCITY = 0  # TODO
+
+    CONTROL_MODE_CURRENT = 0
+    CONTROL_MODE_TORQUE = 2
+    CONTROL_MODE_VELOCITY = 3
+    CONTROL_MODES = [CONTROL_MODE_CURRENT, CONTROL_MODE_TORQUE, CONTROL_MODE_VELOCITY]
+
     def __init__(self):
         rospy.init_node('bldc_driver', anonymous=True)
 
         motor_ids = rospy.get_param('motor_ids')
         motor_names = rospy.get_param('motor_names')
+        self.ctrl_mode = rospy.get_param('control_mode', self.CONTROL_MODE_CURRENT)
+
+        if self.ctrl_mode not in self.CONTROL_MODES:
+            rospy.logerr("Invalid control mode %d, setting to %d", self.ctrl_mode, self.CONTROL_MODE_CURRENT)
+            self.ctrl_mode = self.CONTROL_MODE_CURRENT
+
         self.motor_names = {}
         for id, name in zip(motor_ids, motor_names):
             self.motor_names[id] = name
@@ -55,9 +69,8 @@ class BLDCDriverNode:
         for id in self.motor_names:
             rospy.loginfo("Booting motor %d..." % id)
             self.bldc.leaveBootloader(id)
-            rospy.sleep(0.1)
-            self.serial.flush()
-        self.serial.flush()
+            rospy.sleep(0.2)
+            self.serial.reset_input_buffer()
 
     def calibrate(self):
         calibration_success = False
@@ -70,7 +83,15 @@ class BLDCDriverNode:
                     calibrations = self.bldc.readCalibration(id)
                     print(calibrations)
                     self.bldc.setZeroAngle(id, calibrations['angle'])
-                    self.bldc.setCurrentControlMode(id)
+                    if self.ctrl_mode == self.CONTROL_MODE_CURRENT:
+                        self.bldc.setCurrentControlMode(id)
+                    elif self.ctrl_mode == self.CONTROL_MODE_TORQUE:
+                        self.bldc.setTorqueControlMode(id)
+                    elif self.ctrl_mode == self.CONTROL_MODE_VELOCITY:
+                        self.bldc.setVelocityControlMode(id)
+                    else:
+                        # Should never happen
+                        assert False, 'Unexpected control mode {}'.format(self.ctrl_mode)
                     self.bldc.setInvertPhases(id, calibrations['inv'])
                     self.bldc.setERevsPerMRev(id, calibrations['epm'])
                     self.bldc.setTorqueConstant(id, calibrations['torque'])
@@ -101,11 +122,11 @@ class BLDCDriverNode:
                 try:
                     if not self.stop_motors:
                         if motor_id in self.command_queue:
-                            state = self.bldc.setCommandAndGetState(motor_id, self.command_queue.pop(motor_id))
+                            state = self.set_command_get_state(motor_id, self.command_queue.pop(motor_id))
                         else:
                             state = self.bldc.getState(motor_id)
                     else:
-                        state = self.bldc.setCommandAndGetState(motor_id, 0.0)
+                        state = self.bldc.set_command_get_state(motor_id, 0.0)
 
                     angle, velocity, direct_current, quadrature_current, \
                             supply_voltage, temperature, accel_x, accel_y, accel_z = state
@@ -136,17 +157,38 @@ class BLDCDriverNode:
             self.state_publisher.publish(stateMsg)
             r.sleep()
 
-    def make_set_command(self, motor_id):
+    def make_set_command(self, motor_id):           
         def set_command(motor_id, msg):
             effort_raw = msg.data
             effort_filtered = effort_raw
 
-            if effort_filtered > self.MAX_CURRENT:
-                effort_filtered = self.MAX_CURRENT
-            elif effort_filtered < -self.MAX_CURRENT:
-                effort_filtered = -self.MAX_CURRENT
+            if self.ctrl_mode == self.CONTROL_MODE_CURRENT:
+                ctrl_limit = self.MAX_CURRENT
+            elif self.ctrl_mode == self.CONTROL_MODE_TORQUE:
+                ctrl_limit = self.MAX_TORQUE
+            elif self.ctrl_mode == self.CONTROL_MODE_VELOCITY:
+                ctrl_limit = self.MAX_VELOCITY
+            else:
+                # Should never happen
+                assert False, 'Unexpected control mode {}'.format(self.ctrl_mode)
+
+            if effort_filtered > ctrl_limit:
+                effort_filtered = ctrl_limit
+            elif effort_filtered < -ctrl_limit:
+                effort_filtered = -ctrl_limit
             self.command_queue[motor_id] = effort_filtered
         return lambda msg: set_command(motor_id, msg)
+
+    def set_command_get_state(self, server_id, value):
+        if self.ctrl_mode == self.CONTROL_MODE_CURRENT:
+            return self.bldc.setCurrentCommandAndGetState(server_id, value)
+        elif self.ctrl_mode == self.CONTROL_MODE_TORQUE:
+            return self.bldc.setTorqueCommandAndGetState(server_id, value)
+        elif self.ctrl_mode == self.CONTROL_MODE_VELOCITY:
+            return self.bldc.setVelocityCommandAndGetState(server_id, value)
+        else:
+            # Should never happen
+            assert False, 'Unexpected control mode {}'.format(self.ctrl_mode)
 
     def stop_motors_cb(self, msg):
         if msg.data:
