@@ -21,6 +21,7 @@ find_package(
 catkin_package(
    INCLUDE_DIRS include
    LIBRARIES ${PROJECT_NAME}
+   CATKIN_DEPENDS controller_interface blue_hardware_drivers kdl_parser roscpp urdf blue_msgs
 )
 
 include_directories(
@@ -28,7 +29,7 @@ include_directories(
   ${catkin_INCLUDE_DIRS}
 )
 
-add_library(${PROJECT_NAME} src/BlueJointGroupPositionController.cpp src/CartesianPoseController.cpp)
+add_library(${PROJECT_NAME} src/BlueJointGroupPositionController.cpp src/CartesianPoseController.cpp src/BlueJointGroupCTC.cpp)
 
 target_link_libraries(${PROJECT_NAME} ${catkin_LIBRARIES})
 
