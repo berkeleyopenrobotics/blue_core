@@ -49,7 +49,6 @@ namespace blue_controllers
     if (!n.searchParam("blue_hardware/baselink", k_baselink)) {
       ROS_ERROR("No baselink given node namespace %s", n.getNamespace().c_str());
     }
-<<<<<<< HEAD
     std::string baselink;
     if (!n.getParam(k_baselink, baselink)) {
       ROS_ERROR("No baselink given node namespace %s", n.getNamespace().c_str());
@@ -57,11 +56,6 @@ namespace blue_controllers
 
     if (!n.getParam("ctc_weight", ctc_weight)) {
       ROS_ERROR("No ctc_weight given node namespace %s", n.getNamespace().c_str());
-=======
-
-    if (!n.getParam("ctc_weight", ctc_weight)) {
-      ROS_ERROR("No baselink given node namespace %s", n.getNamespace().c_str());
->>>>>>> 49486129e1f0dc80c7a0cd12d8969f93287ea4d6
     }
 
     KDL::Chain dummyChain;
