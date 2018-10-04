@@ -95,19 +95,20 @@
         - $(arg side)_wrist_lift_joint
         - $(arg side)_wrist_roll_joint
       $(arg side)_base_roll_joint:
-        pid: {p: 10, i: 0.0, d: 30, i_clamp_min: -1, i_clamp_max: 1}
+        pid: {p: 100, i: 0.0, d: 30, i_clamp_min: -1, i_clamp_max: 1}
       $(arg side)_shoulder_lift_joint:
-        pid: {p: 10, i: 0, d: 30, i_clamp_min: -1, i_clamp_max: 1}
+        pid: {p: 100, i: 0, d: 30, i_clamp_min: -1, i_clamp_max: 1}
       $(arg side)_shoulder_roll_joint:
-        pid: {p: 40, i: 0, d: 50, i_clamp_min: -1, i_clamp_max: 1}
+        pid: {p: 400, i: 0, d: 50, i_clamp_min: -1, i_clamp_max: 1}
       $(arg side)_elbow_lift_joint:
-        pid: {p: 10, i: 0, d: 30, i_clamp_min: -1, i_clamp_max: 1}
+        pid: {p: 100, i: 0, d: 30, i_clamp_min: -1, i_clamp_max: 1}
       $(arg side)_elbow_roll_joint:
-        pid: {p: 40, i: 0, d: 50, i_clamp_min: -1, i_clamp_max: 1}
+        pid: {p: 400, i: 0, d: 50, i_clamp_min: -1, i_clamp_max: 1}
       $(arg side)_wrist_lift_joint:
-        pid: {p: 10, i: 0, d: 30, i_clamp_min: -1, i_clamp_max: 1}
+        pid: {p: 100, i: 0, d: 30, i_clamp_min: -1, i_clamp_max: 1}
       $(arg side)_wrist_roll_joint:
-        pid: {p: 40, i: 0, d: 30, i_clamp_min: -1, i_clamp_max: 1}
+        pid: {p: 400, i: 0, d: 30, i_clamp_min: -1, i_clamp_max: 1}
+>>>>>>> 49486129e1f0dc80c7a0cd12d8969f93287ea4d6
 
     cartesian_pose_controller:
       endlink: '$(arg side)_end_roll_link'
