@@ -49,10 +49,11 @@ namespace blue_controllers
     if (!n.searchParam("blue_hardware/baselink", k_baselink)) {
       ROS_ERROR("No baselink given node namespace %s", n.getNamespace().c_str());
     }
-    std::string baselink;
-    if (!n.getParam(k_baselink, baselink)) {
+
+    if (!n.getParam("ctc_weight", ctc_weight)) {
       ROS_ERROR("No baselink given node namespace %s", n.getNamespace().c_str());
     }
+
     KDL::Chain dummyChain;
     ROS_ERROR("%s", endlink.c_str());
     ROS_ERROR("%s", baselink.c_str());
@@ -183,7 +184,7 @@ namespace blue_controllers
     int statusID = chainIdSolver.CartToJnt(jointPositions, jointVelocities, jointAccelerations, f_ext, torques);
 
     for (int i = 0; i < n_joints_; i++) {
-        joints_[i].setCommand(torques(i));
+        joints_[i].setCommand(ctc_weight * torques(i) + (1.0 - ctc_weight) * pid_terms[i]);
     }
   }
 
