@@ -46,6 +46,7 @@ private:
 
   KDL::Chain chain;
   KDL::JntArray torques;
+  double ctc_weight;
 }; // class
 
 } // namespace

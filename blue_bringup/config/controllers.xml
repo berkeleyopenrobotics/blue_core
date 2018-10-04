@@ -85,6 +85,7 @@
 
     joint_ctc:
       type: blue_controllers/BlueJointGroupCTC
+      ctc_weight: 0.5
       joints:
         - $(arg side)_base_roll_joint
         - $(arg side)_shoulder_lift_joint
