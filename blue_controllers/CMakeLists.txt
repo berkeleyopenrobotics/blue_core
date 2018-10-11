@@ -9,9 +9,7 @@ find_package(catkin REQUIRED COMPONENTS
   kdl_parser
   control_toolbox
   realtime_tools
-  hardware_interface
   control_msgs
-  blue_hardware_drivers
 )
 
 find_package(
@@ -21,7 +19,7 @@ find_package(
 catkin_package(
    INCLUDE_DIRS include
    LIBRARIES ${PROJECT_NAME}
-   CATKIN_DEPENDS controller_interface blue_hardware_drivers kdl_parser roscpp urdf blue_msgs
+   CATKIN_DEPENDS controller_interface kdl_parser roscpp urdf
 )
 
 include_directories(
