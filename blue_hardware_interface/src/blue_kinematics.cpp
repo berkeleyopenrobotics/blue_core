@@ -66,7 +66,7 @@ void BlueKinematics::init(
           transmission_gear_ratios);
       joints_in_transmission = 2;
     } else if (joint_idx == 0){
-        // Base joint
+        // Base roll joint
         transmissions_[transmission_idx] = new ti::SimpleTransmission(
             -gear_ratios[joint_idx],
             0.0);
