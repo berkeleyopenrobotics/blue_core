@@ -65,13 +65,20 @@ void BlueKinematics::init(
           transmission_actuator_ratios,
           transmission_gear_ratios);
       joints_in_transmission = 2;
+    } else if (joint_idx == 0){
+        // Base roll joint
+        transmissions_[transmission_idx] = new ti::SimpleTransmission(
+            -gear_ratios[joint_idx],
+            0.0);
+        joints_in_transmission = 1;
     } else {
-      // Not differential pair (base or gripper, one joint each)
-      transmissions_[transmission_idx] = new ti::SimpleTransmission(
-          -gear_ratios[joint_idx],
-          0.0);
-      joints_in_transmission = 1;
+        // Gripper Joint
+        transmissions_[transmission_idx] = new ti::SimpleTransmission(
+            gear_ratios[joint_idx],
+            0.0);
+        joints_in_transmission = 1;
     }
+
 
     // Wrap raw data for each joint in the transmission
     for (int i = 0; i < joints_in_transmission; i++) {
