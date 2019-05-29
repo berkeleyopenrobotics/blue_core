@@ -1,0 +1,125 @@
+#!/usr/bin/env python
+
+from trajectory_msgs.msg import JointTrajectory, JointTrajectoryPoint
+from control_msgs.msg import GripperCommandActionGoal
+from sensor_msgs.msg import JointState
+import std_msgs.msg
+import rosgraph
+import rospy
+
+import numpy as np
+import time
+import copy
+import sys
+
+import signal
+import sys
+
+ARM_NAME = "right"
+ARM_COMMAND_TOPIC = "right_arm/blue_controllers/joint_trajectory_controller/command"
+GRIPPER_COMMAND_TOPIC = "right_arm/blue_controllers/gripper_controller/gripper_cmd/goal"
+ARM_PARAM_NS = "right_arm/blue_hardware/"
+MOVE_WAIT_TIME = 5
+POSITION_SKIP_TOLERANCE = 1
+
+def signal_handler(sig, frame):
+    sys.exit(0)
+
+joint_states = JointState()
+def joint_state_callback(joint_state_msg):
+    global joint_states
+    joint_states = joint_state_msg
+
+def get_rectified_joint_positions(joint_state_msg):
+    indexes = [joint_state_msg.name.index(joint) for joint in joint_names]
+    return np.array([joint_state_msg.position[x] for x in indexes])
+
+if __name__ == '__main__':
+    # Bind interrupt handler
+    signal.signal(signal.SIGINT, signal_handler)
+
+    # Start ROS
+    rospy.init_node(ARM_NAME + '_startup_pose_commander')
+    arm_commander = rospy.Publisher(ARM_COMMAND_TOPIC, JointTrajectory, queue_size = 1)
+    gripper_commander = rospy.Publisher(GRIPPER_COMMAND_TOPIC, GripperCommandActionGoal, queue_size = 1)
+    joint_state_sub = rospy.Subscriber("/joint_states", JointState, joint_state_callback)
+
+    rospy.sleep(1) # Allow publisher to bind
+
+    # Guard against too low a delay
+    if MOVE_WAIT_TIME < 3:
+        MOVE_WAIT_TIME = 3
+
+    # Get params
+    pickup_ready_joint_positions = np.array([0.0, 0.33, 1.5, -1.6, -1.5, -1.0, 0.0])
+    joint_names = rospy.get_param(ARM_PARAM_NS + "joint_names")[:-1]
+
+    # Set up messages
+    arm_command = JointTrajectory()
+    close_gripper_command = GripperCommandActionGoal()
+    open_gripper_command = GripperCommandActionGoal()
+    stop_gripper_command = GripperCommandActionGoal()
+    trajectory_point = JointTrajectoryPoint()
+
+    # Populate arm messages
+    arm_command.points.append(trajectory_point)
+    arm_command.header = std_msgs.msg.Header()
+    arm_command.joint_names = joint_names
+    arm_command.points[0].time_from_start.secs = MOVE_WAIT_TIME - 1
+
+    # Populate gripper messages
+    open_gripper_command.goal.command.max_effort = 3.0
+    open_gripper_command.goal.command.position = 0.25
+
+    close_gripper_command.goal.command.max_effort = 3.0
+    close_gripper_command.goal.command.position = -2.0
+
+    stop_gripper_command.goal.command.max_effort = 0
+    stop_gripper_command.goal.command.position = 0.25
+
+    # Set final goal
+    final_goal = pickup_ready_joint_positions
+
+    # Command Function
+    def move_arm(positions, skip_if_close=True):
+        # Set and publish arm command
+        arm_command.points[0].positions = positions
+
+        if skip_if_close:
+            # If either the final goal or the intermediate goals are close to
+            # the current state of the arm, skip the intermediate goal
+            if np.abs(np.sum(np.abs(get_rectified_joint_positions(joint_states))
+                      - np.abs(final_goal))) < POSITION_SKIP_TOLERANCE:
+                return
+            if np.abs(np.sum(np.abs(get_rectified_joint_positions(joint_states))
+                      - np.abs(positions))) < POSITION_SKIP_TOLERANCE:
+                return
+
+        arm_command.header.stamp = rospy.Time.now()
+        arm_commander.publish(arm_command)
+
+        rospy.sleep(MOVE_WAIT_TIME)
+
+    ############################################################################
+    # BEGIN ACTUATION
+    ############################################################################
+
+    # Close Gripper
+    rospy.loginfo("Closing grippers")
+    gripper_commander.publish(close_gripper_command)
+
+    # Raise Arm
+    rospy.loginfo("Readying arm")
+    move_arm(np.zeros(7))
+
+    # Move Arm to Pickup-Ready Position
+    rospy.loginfo("Moving arm to Pickup-Ready Position")
+    move_arm(pickup_ready_joint_positions, skip_if_close=False)
+    rospy.loginfo("Arm is ready")
+    rospy.sleep(0.25)
+
+    # Open and Stop Gripper
+    rospy.loginfo("Opening and Depowering grippers")
+    gripper_commander.publish(open_gripper_command)
+    rospy.sleep(3)
+    gripper_commander.publish(stop_gripper_command)
