@@ -123,7 +123,7 @@ if __name__ == '__main__':
 
     # Return arm to intermediate home
     rospy.loginfo("Moving Arm to Home")
-    move_arm(pre_startup_joint_positions)
+    move_arm(pre_startup_joint_positions, skip_if_close=False)
 
     # Return arm to home
     move_arm(startup_joint_positions, skip_if_close=False)
