@@ -369,7 +369,7 @@ void BlueKinematics::getGravityVectors(
 
 std::vector<double> BlueKinematics::getActuatorCommands(
     const std::vector<double> &feedforward_torques,
-    double softstop_torque_limit, // TODO: clean up softstop code
+    const std::vector<double> &softstop_torque_gains,
     const std::vector<double> &softstop_min_angles,
     const std::vector<double> &softstop_max_angles,
     double softstop_tolerance) {
@@ -385,23 +385,43 @@ std::vector<double> BlueKinematics::getActuatorCommands(
 
   // Compute joint commands
   for (int i = 0; i < num_joints_; i++) {
-    // Add feedforward if it exists
-    if (i < feedforward_torques.size())
-      joint_cmd_[i] = raw_joint_cmd_[i] + feedforward_torques[i];
-    else
-      joint_cmd_[i] = raw_joint_cmd_[i];
-
+    joint_cmd_[i] = raw_joint_cmd_[i];
     raw_joint_cmd_[i] = 0.0;
 
     // Soft stops
     // TODO: hacky and temporary
-    if(joint_pos_[i] > softstop_max_angles[i] - softstop_tolerance) {
-      double offset = joint_pos_[i] - softstop_max_angles[i] + softstop_tolerance;
-      joint_cmd_[i] += -1.0 * softstop_torque_limit * pow(offset, 2);
-    } else if (joint_pos_[i] < softstop_min_angles[i] + softstop_tolerance) {
-      double offset = softstop_min_angles[i] + softstop_tolerance - joint_pos_[i];
-      joint_cmd_[i] += softstop_torque_limit * pow(offset, 2);
+    double eps_vel = 0.1;
+    if(joint_pos_[i] > (softstop_max_angles[i] - softstop_tolerance) && joint_vel_[i] > 0) {
+      double offset = joint_pos_[i] - (softstop_max_angles[i] - softstop_tolerance);
+      double spring = offset * softstop_torque_gains[i];
+      double applied = std::min(spring, joint_vel_[i]);
+      joint_cmd_[i] += -applied;
+
+      // if(joint_pos_[i] > softstop_max_angles[i] - softstop_tolerance/2.0) {
+        // joint_cmd_[i] += -0.5 * softstop_torque_gains[i] * joint_vel_[i];
+      // } else if (joint_vel_[i] < 0) {
+      // joint_cmd_[i] += -1.0 * offset * softstop_torque_gains[i] * joint_vel_[i];
+      // }
+      // joint_cmd_[i] += -0.2 * softstop_torque_gains[i] * pow(offset, 1);
+      // joint_cmd_[i] += -0.5 * softstop_torque_gains[i] * joint_vel_[i];
+
+    } else if (joint_pos_[i] < (softstop_min_angles[i] + softstop_tolerance) && joint_vel_[i] < 0) {
+      double offset = (softstop_min_angles[i] + softstop_tolerance) - joint_pos_[i];
+      double spring = offset * softstop_torque_gains[i];
+      double applied = std::min(spring, -joint_vel_[i]);
+      joint_cmd_[i] += applied;
+      // if(joint_pos_[i] < softstop_min_angles[i] + softstop_tolerance/2.0) {
+        // joint_cmd_[i] += -0.5 * softstop_torque_gains[i] * joint_vel_[i];
+      // } else if (joint_vel_[i] > 0) {
+      // joint_cmd_[i] += -1.0 *offset *softstop_torque_gains[i] * joint_vel_[i];
+      // }
+      // joint_cmd_[i] += 0.2 * softstop_torque_gains[i] * pow(offset, 1);
+      // joint_cmd_[i] += -0.5 * softstop_torque_gains[i] * joint_vel_[i];
     }
+
+    // Add feedforward if it exists
+    if (i < feedforward_torques.size())
+      joint_cmd_[i] = joint_cmd_[i] + feedforward_torques[i];
   }
 
   // Propagate through transmissions to compute actuator commands
