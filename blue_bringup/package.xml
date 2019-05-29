@@ -12,6 +12,12 @@
 
   <buildtool_depend>catkin</buildtool_depend>
 
+  <build_depend>rospy</build_depend>
+
+  <exec_depend>rospy</exec_depend>
+  <exec_depend>trajectory_msgs</exec_depend>
+  <exec_depend>control_msgs</exec_depend>
+  <exec_depend>sensor_msgs</exec_depend>
   <exec_depend>blue_controller_manager</exec_depend>
   <exec_depend>blue_msgs</exec_depend>
   <exec_depend>rosbridge_server</exec_depend>

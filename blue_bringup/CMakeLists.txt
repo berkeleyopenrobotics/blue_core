@@ -1,7 +1,13 @@
 cmake_minimum_required(VERSION 2.8.3)
 project(blue_bringup)
 
-find_package(catkin REQUIRED COMPONENTS)
+find_package(catkin REQUIRED COMPONENTS
+  rospy
+  trajectory_msgs
+  control_msgs
+  sensor_msgs
+  actionlib_msgs
+)
 
 ###################################
 ## catkin specific configuration ##
