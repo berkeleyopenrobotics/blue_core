@@ -35,8 +35,6 @@
       output="screen">
       <rosparam param="start_controllers">
         - blue_controllers/joint_state_controller
-        - blue_controllers/joint_trajectory_controller
-        - blue_controllers/gripper_controller
       </rosparam>
     </node>
 
