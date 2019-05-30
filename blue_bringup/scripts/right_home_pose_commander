@@ -72,13 +72,13 @@ if __name__ == '__main__':
 
     # Populate gripper messages
     open_gripper_command.goal.command.max_effort = 3.0
-    open_gripper_command.goal.command.position = 0.25
+    open_gripper_command.goal.command.position = -0.05
 
     close_gripper_command.goal.command.max_effort = 3.0
-    close_gripper_command.goal.command.position = -2.0
+    close_gripper_command.goal.command.position = 1.05
 
     stop_gripper_command.goal.command.max_effort = 0
-    stop_gripper_command.goal.command.position = 0.25
+    stop_gripper_command.goal.command.position = -0.05
 
     # Set final goal
     final_goal = startup_joint_positions
