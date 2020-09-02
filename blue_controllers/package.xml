@@ -27,7 +27,7 @@
   <depend>gripper_action_controller</depend>
   <depend>joint_trajectory_controller</depend>
   <depend>kdl_parser</depend>
-  <depend>orocos_kdl</depend>
+  <depend>liborocos-kdl-dev</depend>
 
   <!-- The export tag contains other, unspecified, tags -->
   <export>
