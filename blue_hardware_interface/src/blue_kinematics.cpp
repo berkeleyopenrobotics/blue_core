@@ -7,7 +7,7 @@
 
 #include <string.h>
 #include <cmath>
-
+TODO: remove this
 BlueKinematics::BlueKinematics() :
   is_calibrated_(false) {}
 
