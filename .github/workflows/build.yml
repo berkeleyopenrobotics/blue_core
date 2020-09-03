@@ -40,10 +40,10 @@ jobs:
             ros_distribution: melodic
             ros_version: 1
 
-          # Noetic Ninjemys (May 2020 - May 2025)
-          - docker_image: ubuntu:focal
-            ros_distribution: noetic
-            ros_version: 1
+          # # Noetic Ninjemys (May 2020 - May 2025)
+          # - docker_image: ubuntu:focal
+          #   ros_distribution: noetic
+          #   ros_version: 1
 
     container:
       image: ${{ matrix.docker_image }}
