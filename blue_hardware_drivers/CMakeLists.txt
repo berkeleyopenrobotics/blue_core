@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 2.8.3)
+cmake_minimum_required(VERSION 3.0.2)
 project(blue_hardware_drivers)
 
 ## Compile as C++11, supported in ROS Kinetic and newer
@@ -57,11 +57,11 @@ target_link_libraries(BLDCDriver_communication_freq_test
 
 
 ## Mark executables and/or libraries for installation
-#install(TARGETS BLDCDriver
-#  ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
-#  LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
-#  RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
-#)
+install(TARGETS ${PROJECT_NAME}
+ ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
+ LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
+ RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
+)
 
 install(TARGETS BLDCDriver_communication_freq_test
   ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
