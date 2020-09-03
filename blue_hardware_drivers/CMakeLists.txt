@@ -1,6 +1,9 @@
 cmake_minimum_required(VERSION 3.0.2)
 project(blue_hardware_drivers)
 
+# add modules for finding JSONCPP
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake/modules")
+
 ## Compile as C++11, supported in ROS Kinetic and newer
 add_compile_options(-std=c++11)
 
@@ -15,17 +18,18 @@ find_package(catkin REQUIRED COMPONENTS
   sensor_msgs
   blue_msgs
 )
-find_package(PkgConfig REQUIRED)
-pkg_check_modules(JSONCPP jsoncpp)
+find_package(JSONCPP REQUIRED)
 
 catkin_package(
   INCLUDE_DIRS include
   LIBRARIES blue_hardware_drivers
   CATKIN_DEPENDS roscpp rospy sensor_msgs serial std_msgs
+  DEPENDS JSONCPP
 )
 include_directories(include include/blue_hardware_drivers)
 include_directories(
   ${catkin_INCLUDE_DIRS}
+  ${JSONCPP_INCLUDE_DIRS}
 )
 
 add_library(${PROJECT_NAME}
@@ -36,7 +40,7 @@ add_library(${PROJECT_NAME}
   src/Buffer.cpp
 )
 target_link_libraries(${PROJECT_NAME}
-  ${JSONCPP_LIBRARIES}
+  ${JSONCPP_LIBRARY}
 )
 
 add_dependencies(${PROJECT_NAME} ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
