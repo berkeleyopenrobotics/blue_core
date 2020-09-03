@@ -16,7 +16,7 @@
 #include "blue_hardware_drivers/Packets.h"
 #include "blue_hardware_drivers/crc16.h"
 #include "blue_hardware_drivers/Buffer.h"
-#include "json/json.h"
+#include "jsoncpp/json/json.h"
 
 namespace blue_hardware_drivers {
 

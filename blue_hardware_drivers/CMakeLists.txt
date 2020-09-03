@@ -15,14 +15,16 @@ find_package(catkin REQUIRED COMPONENTS
   sensor_msgs
   blue_msgs
 )
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(JSONCPP jsoncpp)
 
 catkin_package(
   INCLUDE_DIRS include
   LIBRARIES blue_hardware_drivers
   CATKIN_DEPENDS roscpp rospy sensor_msgs serial std_msgs
 )
+include_directories(include include/blue_hardware_drivers)
 include_directories(
-  include
   ${catkin_INCLUDE_DIRS}
 )
 
@@ -32,7 +34,9 @@ add_library(${PROJECT_NAME}
   src/Packets.cpp
   src/crc16.cpp
   src/Buffer.cpp
-  json_src/json.cpp
+)
+target_link_libraries(${PROJECT_NAME}
+  ${JSONCPP_LIBRARIES}
 )
 
 add_dependencies(${PROJECT_NAME} ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
@@ -70,8 +74,9 @@ install(TARGETS BLDCDriver_communication_freq_test
 )
 
 ## Mark cpp header files for installation
-install(DIRECTORY include/blue_hardware_drivers
-  DESTINATION ${CATKIN_PACKAGE_INCLUDE_DESTINATION}
+install(DIRECTORY include/
+  DESTINATION ${CATKIN_GLOBAL_INCLUDE_DESTINATION}
+  FILES_MATCHING PATTERN "*.h"
 )
 
 ## Mark Python scripts for installation

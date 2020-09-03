@@ -1,5 +1,5 @@
 #include "blue_hardware_drivers/comms_defs.h"
-#include "json/json.h"
+#include "jsoncpp/json/json.h"
 
 /*
 bool initMotor(comm_id_t board_id){

@@ -22,5 +22,6 @@
   <depend>std_msgs</depend>
   <depend>blue_msgs</depend>
   <depend>transmission_interface</depend>
+  <depend>libjsoncpp</depend>
 
 </package>
