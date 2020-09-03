@@ -14,7 +14,9 @@ jobs:
         ros_distribution:
           - kinetic
           - melodic
-          - noetic
+          # Noetic build is broken because there's currently no release for the serial dependency:
+          # https://github.com/wjwwood/serial/issues/222
+          # - noetic
 
         # Define the Docker image(s) associated with each ROS distribution.
         # The include syntax allows additional variables to be defined, like
