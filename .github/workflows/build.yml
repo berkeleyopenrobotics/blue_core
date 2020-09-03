@@ -54,6 +54,13 @@ jobs:
         if: ${{ matrix.ros_version == 1 }}
         uses: ros-tooling/action-ros-ci@0.0.19
         with:
-          package-name: blue_core
+          package-name: |
+            blue_bringup
+            blue_controller_manager
+            blue_controllers
+            blue_descriptions
+            blue_hardware_interface
+            blue_hardware_drivers
+            blue_msgs
           target-ros1-distro: ${{ matrix.ros_distribution }}
           vcs-repo-file-url: ""
